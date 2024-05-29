@@ -1,12 +1,26 @@
-# Define provider
 provider "aws" {
-  region = "us-east-2"  # Change this to your desired AWS region
+  region = "us-east-2"
 }
 
-# Define security group
+variable "instance_count" {
+  default = 3
+}
+
+variable "ami" {
+  default = "ami-0ddda618e961f2270"
+}
+
+variable "instance_type" {
+  default = "t2.micro"
+}
+
+variable "key_name" {
+  default = "paul"
+}
+
 resource "aws_security_group" "instance_security_group" {
   name        = "instance_security_group"
-  description = "Allow inbound traffic on specified ports"
+  description = "Allow inbound traffic for specified ports"
 
   ingress {
     from_port   = 80
@@ -44,8 +58,8 @@ resource "aws_security_group" "instance_security_group" {
   }
 
   ingress {
-    from_port   = 7946
-    to_port     = 7946
+    from_port   = 4789
+    to_port     = 4789
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -56,18 +70,21 @@ resource "aws_security_group" "instance_security_group" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "instance_security_group"
+  }
 }
 
-# Define EC2 instances
-resource "aws_instance" "ec2_instance" {
-  count         = 3
-  ami           = "ami-0ddda618e961f2270"  # Replace this with your desired AMI ID
-  instance_type = "t2.micro"  # Change this to your desired instance type
-#   subnet_id     = "subnet-12345678"  # Replace this with your subnet ID
+resource "aws_instance" "example" {
+  count         = var.instance_count
+  ami           = var.ami
+  instance_type = var.instance_type
+  key_name      = var.key_name
 
   security_groups = [aws_security_group.instance_security_group.name]
 
   tags = {
-    Name = "EC2 Instance ${count.index + 1}"
+    Name = "example-instance-${count.index + 1}"
   }
 }
