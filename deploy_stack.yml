@@ -1,0 +1,11 @@
+- name: Deploy Docker Stack
+  hosts: swarm_managers
+  become: yes
+  tasks:
+    - name: Copy Docker Compose file to manager
+      copy:
+        src: ./docker-compose.yml
+        dest: /tmp/docker-compose.yml
+
+    - name: Deploy the stack
+      shell: docker stack deploy -c /tmp/docker-compose.yml my_stack

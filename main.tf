@@ -1,90 +1,20 @@
 provider "aws" {
-  region = "us-east-2"
+  region = var.region
 }
 
-variable "instance_count" {
-  default = 3
-}
-
-variable "ami" {
-  default = "ami-0ddda618e961f2270"
-}
-
-variable "instance_type" {
-  default = "t2.micro"
-}
-
-variable "key_name" {
-  default = "paul"
-}
-
-resource "aws_security_group" "instance_security_group" {
-  name        = "instance_security_group"
-  description = "Allow inbound traffic for specified ports"
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 8000
-    to_port     = 8000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 2377
-    to_port     = 2377
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 7946
-    to_port     = 7946
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 4789
-    to_port     = 4789
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "instance_security_group"
-  }
-}
-
-resource "aws_instance" "example" {
-  count         = var.instance_count
-  ami           = var.ami
+resource "aws_instance" "swarm_instances" {
+  count         = 3
   instance_type = var.instance_type
+  ami           = var.ami
   key_name      = var.key_name
+  subnet_id     = var.subnet_id
+  
 
-  security_groups = [aws_security_group.instance_security_group.name]
+  vpc_security_group_ids = [aws_security_group.swarm_sg.id]
+
+  associate_public_ip_address = true
 
   tags = {
-    Name = "example-instance-${count.index + 1}"
+    Name = "swarm-instance-${count.index + 1}"
   }
 }

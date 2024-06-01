@@ -1,0 +1,124 @@
+---
+- name: Install Docker and Initialize Swarm Cluster
+  hosts: all
+  remote_user: ec2-user
+  gather_facts: true  # Ensure facts are gathered
+  become: yes
+  tasks:
+    - name: Install dependencies on Amazon Linux
+      yum:
+        name:
+          - amazon-linux-extras
+          - yum-utils
+        state: present
+      when: ansible_os_family == "Amazon"
+
+    - name: Enable Docker in Amazon Linux Extras
+      command: amazon-linux-extras install docker -y
+      when: ansible_os_family == "Amazon"
+
+    - name: Install Docker on Amazon Linux
+      yum:
+        name: docker
+        state: present
+      when: ansible_os_family == "Amazon"
+
+    - name: Install dependencies on other OS (e.g., CentOS, RHEL)
+      yum:
+        name: yum-utils
+        state: present
+      when: ansible_os_family in ["RedHat", "CentOS"]
+
+    - name: Install Docker on CentOS/RHEL
+      yum:
+        name:
+          - docker
+          - device-mapper-persistent-data
+          - lvm2
+        state: present
+      when: ansible_os_family in ["RedHat", "CentOS"]
+
+    - name: Install dependencies on Ubuntu
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker's official GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Set up the stable repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Docker on Ubuntu
+      apt:
+        name: docker-ce
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure Docker is started and enabled
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+- name: Initialize Docker Swarm on Manager
+  hosts: swarm_managers
+  gather_facts: true
+  become: yes
+  tasks:
+    - name: Initialize the Docker Swarm manager
+      shell: docker swarm init --advertise-addr {{ ansible_host }}
+      register: swarm_init
+      when: inventory_hostname == 'manager1'
+
+    - name: Get the join token for workers
+      shell: docker swarm join-token -q worker
+      register: worker_token
+      when: inventory_hostname == 'manager1'
+
+    - name: Save the worker token to a file
+      copy:
+        content: "{{ worker_token.stdout }}"
+        dest: /tmp/worker_token
+      when: inventory_hostname == 'manager1'
+
+- name: Join workers to Swarm
+  hosts: swarm_workers
+  gather_facts: true
+  become: yes
+  tasks:
+    - name: Copy the join token from manager
+      fetch:
+        src: /tmp/worker_token
+        dest: /tmp/worker_token
+        flat: yes
+      delegate_to: manager1
+
+    - name: Join the Docker Swarm
+      shell: docker swarm join --token {{ lookup('file', '/tmp/worker_token') }} {{ hostvars['manager1']['ansible_host'] }}:2377
+
+- name: Deploy Docker Stack
+  hosts: swarm_managers
+  gather_facts: true
+  become: yes
+  tasks:
+    - name: Copy Docker Compose file to manager
+      copy:
+        src: ./docker-compose.yml
+        dest: /tmp/docker-compose.yml
+
+    - name: Deploy the stack
+      shell: docker stack deploy -c /tmp/docker-compose.yml my_stack
